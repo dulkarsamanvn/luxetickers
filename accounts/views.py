@@ -3,6 +3,7 @@ from django.contrib import messages
 from .models import CustomUser
 from category.models import Category
 from brand.models import Brand
+from product.models import Product,ProductVariant, ProductVariantImage
 from .utils import generate_otp, send_otp
 from django.core.cache import cache
 from django.core.mail import send_mail
@@ -162,9 +163,32 @@ def admin_dashboard_view(request):
 def home_view(request):
     categories = Category.objects.filter(is_listed=True)
     brands = Brand.objects.filter(is_listed=True)
+    products = Product.objects.prefetch_related('variants__images').all()
+    processed_products = []
+
+    for product in products:
+        first_variant = product.variants.first()
+        if first_variant:
+            primary_image = first_variant.images.filter(is_primary=True).first()
+            primary_image_url = primary_image.image.url if primary_image else None
+            processed_products.append({
+                'id': product.id,  # Include the product ID
+                'name': product.name,
+                'price': first_variant.price,
+                'case_color': first_variant.case_color,
+                'dial_color': first_variant.dial_color,
+                'primary_image_url': primary_image_url,
+                'other_case_colors': [
+                    variant.case_color for variant in product.variants.all()
+                ],
+                'dial_colors': [
+                    variant.dial_color for variant in product.variants.all()
+                ],
+            })
     context = {
         'brands': brands,
         'categories': categories,
+        'products': processed_products,
     }
     return render(request, "home.html", context)
 
